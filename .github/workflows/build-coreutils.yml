@@ -1,0 +1,25 @@
+name: Build GCC for RISC-V
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 1 * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: cloudv10x/riscv-qemu-ubuntu:latest
+    steps:
+      - name: Install dependencies
+        run: |
+         uname -a
+         cat /etc/os-release
+         sudo apt-get update
+      
+      - name: Check environment
+        run: |
+          set -eux
+          uname -a
+          gcc --version
+          g++ --version
+          ldd --version
