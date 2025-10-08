@@ -35,7 +35,7 @@ jobs:
 
       - name: Prepare log directories
         run: |
-          set -euo pipefail
+          set -euo
           mkdir -p "${LOG_DIR}" 
           chmod 755 "${LOG_DIR}"
           
