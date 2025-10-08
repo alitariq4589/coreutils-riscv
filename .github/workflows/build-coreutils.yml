@@ -1,127 +1,27 @@
-# This workflow tests your application in a RISC-V Ubuntu environment using QEMU
-# 
-# What this does:
-# - Starts a qemu-system-riscv64 Ubuntu container
-# - Waits for the system to boot completely
-# - Provides helper functions to send commands to the guest system
-# - Runs your custom tests inside the RISC-V environment
-#
-# Documentation: https://github.com/cloudv10x/riscv-qemu-ubuntu
+name: Build GCC for RISC-V
 
-name: Testing on RISC-V Ubuntu # running by qemu-system-riscv64 
-
-# EDIT : Change triggers as needed for your use case
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
+  schedule:
+    - cron: "0 0 1 * *"
 
 jobs:
-  qemu-system-riscv64-ubuntu:
+  build:
     runs-on: ubuntu-latest
-    container: cloudv10x/riscv-qemu-ubuntu:latest
-    env:
-      CONTAINER_NAME: riscv-test
-      LOG_DIR: ${{ github.workspace }}/var/log/qemu
-      WORK_DIR: ${{ github.workspace }}
-      CONSOLE_LOG: ${{ github.workspace }}/var/log/qemu/console.log
-      GUEST_FIFO: /var/log/qemu/guest.in
+    container:
+      image: ubuntu:latest
+      options: --platform linux/riscv64
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Prepare log directories
+      - name: Install dependencies
         run: |
-          set -euo
-          mkdir -p "${LOG_DIR}" 
-          chmod 755 "${LOG_DIR}"
-          
-          # pull common functions
-          chmod +x "${GITHUB_WORKSPACE}/.github/scripts/common.sh"
-          echo "BASH_ENV=${GITHUB_WORKSPACE}/.github/scripts/common.sh" >> "$GITHUB_ENV"
-
-    #   - name: Pull RISC-V image and start container
-    #     run: |
-    #       start_qemu_container "${CONTAINER_NAME}" "${WORK_DIR}" "${LOG_DIR}" "cloudv10x/riscv-qemu-ubuntu:latest"
-
-    #       if docker ps --filter "name=^${CONTAINER_NAME}$" --filter "status=running" --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
-    #         echo "Container '${CONTAINER_NAME}' is running."
-    #         exit 0
-    #       else
-    #         echo " Container '${CONTAINER_NAME}' is NOT running!"
-    #         echo "---- Docker ps output ----"
-    #         docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-    #         echo "--------------------------"
-    #         exit 1
-    #       fi
-
-      - name: Wait for QEMU system boot
-        timeout-minutes: 10
-        run: |
-          wait_for_qemu_boot "${CONTAINER_NAME}" "${CONSOLE_LOG}" 600 5
-          
-          GUEST_DETAILS="${CONTAINER_NAME} ${GUEST_FIFO} ${CONSOLE_LOG}"
-          echo "GUEST_DETAILS=${GUEST_DETAILS}" >> $GITHUB_ENV
-
-      - name: Setup Guest Interface
-        run: |
-          setup_guest_interface "${CONTAINER_NAME}" "${GUEST_FIFO}" 
-
-          sleep 1
-          echo "Verifying /workspace visibility inside QEMU guest..."
-          run_guest ${GUEST_DETAILS} "echo 'Current working directory:' && pwd"
-          run_guest ${GUEST_DETAILS} "echo 'Listing contents of current directory:' && ls -alh \"\\\$PWD\""
-
-      # ============================================================================
-      # YOUR TESTS GO HERE
-      # ============================================================================
-      # Replace the examples below with your own test commands
-      # Use run_guest() for commands where you need to see output
-      # Use send_cmd() for simple commands without output capture
-      # ============================================================================
-      - name: Run guest tests in RISC-V environment
-        if: success()
-        run: |
-          # Example Usage
-          run_guest ${GUEST_DETAILS} "
-            uname -a
-            sudo apt update
-            sudo apt upgrade
-          
-          "
-
-          echo "✓ All tests completed successfully"
-
-
-      - name: Capture diagnostics on failure
-        if: failure()
-        run: |
-          echo "=== Failure Diagnostics ==="
-          echo "Container status:"
-          docker ps -a --filter "name=${CONTAINER_NAME}"
-          
-          echo -e "\n=== Last 100 console lines ==="
-          docker exec "${CONTAINER_NAME}" tail -n 100 "${CONSOLE_LOG}" 2>/dev/null || \
-            echo "Console log unavailable"
-          
-          echo -e "\n=== Container logs ==="
-          docker logs --tail 50 "${CONTAINER_NAME}" 2>&1 || echo "Container logs unavailable"
-
-      - name: Upload logs on completion
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: riscv-qemu-logs
-          path: ${{ github.workspace }}/var/log/qemu/
-          retention-days: 7
-          if-no-files-found: warn
-
-      - name: Cleanup resources
-        if: always()
-        run: |
-          docker stop "${CONTAINER_NAME}" 2>/dev/null || true
-          docker rm "${CONTAINER_NAME}" 2>/dev/null || true
-          echo "✓ Cleanup complete"
+         uname -a
+         cat /etc/os-release
+         sudo apt-get update
+         sudo apt-get install -y \
+           build-essential \
+           libatomic1 \
+           flex \
+           bison 
