@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
+         #!/bin/bash
+
+         set -x
          uname -a
          cat /etc/os-release
          sudo apt-get update
