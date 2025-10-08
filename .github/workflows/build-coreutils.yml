@@ -33,15 +33,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-    #   - name: Prepare log directories
-    #     run: |
-    #       set -euo pipefail
-    #       mkdir -p "${LOG_DIR}" 
-    #       chmod 755 "${LOG_DIR}"
+      - name: Prepare log directories
+        run: |
+          set -euo pipefail
+          mkdir -p "${LOG_DIR}" 
+          chmod 755 "${LOG_DIR}"
           
-    #       # pull common functions
-    #       chmod +x "${GITHUB_WORKSPACE}/.github/scripts/common.sh"
-    #       echo "BASH_ENV=${GITHUB_WORKSPACE}/.github/scripts/common.sh" >> "$GITHUB_ENV"
+          # pull common functions
+          chmod +x "${GITHUB_WORKSPACE}/.github/scripts/common.sh"
+          echo "BASH_ENV=${GITHUB_WORKSPACE}/.github/scripts/common.sh" >> "$GITHUB_ENV"
 
     #   - name: Pull RISC-V image and start container
     #     run: |
