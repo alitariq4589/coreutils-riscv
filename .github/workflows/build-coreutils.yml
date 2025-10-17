@@ -98,7 +98,7 @@ jobs:
       - name: Build
         run: |
           cd coreutils/build
-          make -j32
+          make -j8
 
       - name: Install
         run: |
