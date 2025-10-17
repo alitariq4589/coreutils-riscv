@@ -26,7 +26,17 @@ jobs:
            flex \
            bison \
            make \
-           git
+           git \
+           autoconf \
+           automake \
+           gettext \
+           autopoint \
+           gperf \
+           texinfo \
+           texlive \
+           wget \
+           make
+
 
       - name: Checkout repo
         uses: actions/checkout@v4
