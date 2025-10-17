@@ -1,33 +1,139 @@
-name: Build GCC for RISC-V
+name: Build coreutils for RISC-V
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
   schedule:
     - cron: "0 0 1 * *"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container:
-      image: ubuntu:latest
-      options: --platform linux/riscv64
+    runs-on: RISCV64
     permissions:
       contents: write
+    outputs:
+      tag_name: ${{ steps.get-latest-tag.outputs.tag_name }}
+      release_name: ${{ steps.get-version.outputs.release_name }}
+      asset_name: ${{ steps.get-version.outputs.asset_name }}
+      asset_path: ${{ steps.get-version.outputs.asset_path }}
 
     steps:
-      - name: Enable QEMU (for riscv64 emulation)
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: riscv64
       - name: Install dependencies
         run: |
-         uname -a
-         cat /etc/os-release
          sudo apt-get update
          sudo apt-get install -y \
            build-essential \
            libatomic1 \
            flex \
-           bison 
+           bison \
+           make \
+           git
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Directories
+        run: mkdir -p $GITHUB_WORKSPACE/installed_binaries
+      
+      - name: Check environment
+        run: |
+          set -eux
+          uname -a
+          gcc --version
+          g++ --version
+          ldd --version
+
+      - name: Clone Coreutils from mirror and checkout latest tag
+        id: get-latest-tag
+        run: |
+          set -eux
+
+          # Tweak Git to be more resilient on CI
+          git config --global http.postBuffer 524288000
+          git config --global http.maxRequests 2
+          git config --global core.compression 0
+
+          rm -rf coreutils installed_binaries
+          git clone --depth=1 --no-tags https://github.com/coreutils/coreutils.git
+          cd coreutils
+
+          # Fetch only tag references (without full history)
+          git fetch --tags --depth=1
+          git submodule update --recursive --remote
+
+          LATEST_TAG=$(git tag -l "v*" | sort -V | tail -n 1)
+          echo "Checking out $LATEST_TAG"
+
+          # Fetch and checkout just that tag commit (still shallow)
+          git fetch --depth=1 origin tag $LATEST_TAG
+          git checkout FETCH_HEAD
+
+          echo "tag_name=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Directories for Build
+        run: |
+          mkdir installed_binaries
+      
+      - name: Configure
+        run: |
+          cd coreutils
+          ./bootstrap
+          mkdir build
+          cd build
+          ../configure --prefix=$GITHUB_WORKSPACE/installed_binaries
+
+      - name: Build
+        run: |
+          cd coreutils/build
+          make -j32
+
+      - name: Install
+        run: |
+          cd coreutils/build
+          make install
+
+      - name: Verify installation
+        run: |
+          cd $GITHUB_WORKSPACE/installed_binaries
+          ./bin/ls --version
+
+      - name: Get Coreutils version and set outputs
+        id: get-version
+        run: |
+          COREUTILS_VERSION=$($GITHUB_WORKSPACE/installed_binaries/bin/ls -dumpfullversion -dumpversion)
+          ASSET_NAME="coreutils-${COREUTILS_VERSION}-riscv64-linux.tar.gz"
+          ASSET_PATH="$GITHUB_WORKSPACE/${ASSET_NAME}"
+
+          echo "release_name=Coreutils ${COREUTILS_VERSION} RISC-V" >> $GITHUB_OUTPUT
+          echo "asset_name=$ASSET_NAME" >> $GITHUB_OUTPUT
+          echo "asset_path=$ASSET_PATH" >> $GITHUB_OUTPUT
+
+      - name: Package binaries
+        run: |
+          tar -czf ${{ steps.get-version.outputs.asset_path }} -C ${{ github.workspace }}/installed_binaries .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.get-version.outputs.asset_name }}
+          path: ${{ steps.get-version.outputs.asset_path }}
+
+      - name: Create or push to tag
+        run: |
+          TAG=${{ steps.get-latest-tag.outputs.tag_name }}
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "✅ Tag $TAG already exists. Skipping tag creation." 
+          else
+            echo "🆕 Tag $TAG does not exist. Creating and pushing..."
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get-latest-tag.outputs.tag_name }}
+          files: ${{ steps.get-version.outputs.asset_path }}
