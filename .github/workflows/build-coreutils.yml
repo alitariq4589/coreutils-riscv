@@ -37,7 +37,8 @@ jobs:
            texinfo \
            texlive \
            wget \
-           make
+           make \
+           python3
 
 
       - name: Checkout repo
