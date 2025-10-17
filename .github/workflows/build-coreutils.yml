@@ -113,7 +113,7 @@ jobs:
       - name: Get Coreutils version and set outputs
         id: get-version
         run: |
-          COREUTILS_VERSION=$($GITHUB_WORKSPACE/installed_binaries/bin/ls -dumpfullversion -dumpversion)
+          COREUTILS_VERSION=$($GITHUB_WORKSPACE/installed_binaries/bin/ls --version | head -n1 | awk '{print $4}')
           ASSET_NAME="coreutils-${COREUTILS_VERSION}-riscv64-linux.tar.gz"
           ASSET_PATH="$GITHUB_WORKSPACE/${ASSET_NAME}"
 
